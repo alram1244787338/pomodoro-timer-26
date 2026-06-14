@@ -1,109 +1,103 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useReducer, useEffect, useRef, useCallback } from 'react';
 import { type Mode, type TimerSettings } from '../types';
+import {
+  pomodoroReducer,
+  createInitialState,
+} from './pomodoroMachine';
 
 /**
- * Manages the Pomodoro logic (Work -> Break cycles) and time tracking.
+ * Drives the Pomodoro state machine and connects it to the real world.
+ *
+ * Responsibilities are split on purpose:
+ *   - {@link pomodoroReducer} owns every rule (mode switching, session counting,
+ *     what happens when a phase ends) as pure, testable transitions.
+ *   - This hook owns only the side-effectful parts: the wall-clock countdown and
+ *     firing {@link onTimerComplete} when a phase finishes.
+ *
+ * The public API is intentionally unchanged from the previous implementation.
  */
 export const usePomodoro = (
-  timerSettings: TimerSettings, 
-  onTimerComplete: () => void // Callback to run when timer ends (e.g. play sound)
+  timerSettings: TimerSettings,
+  onTimerComplete: () => void, // Callback to run when a phase ends (e.g. play sound)
 ) => {
-  const [actualTime, setActualTime] = useState(timerSettings.work);
-  const [isRunning, setIsRunning] = useState(false);
-  const [actualMode, setActualMode] = useState<Mode>("work");
-  const [sessionCount, setSessionCount] = useState(0);
-  
-  // The invisible anchor for Delta Time calculation
-  const timerEndTime = useRef<number | null>(null);
+  const [state, dispatch] = useReducer(
+    pomodoroReducer,
+    timerSettings,
+    createInitialState,
+  );
+  const { mode, status, secondsLeft, sessionCount } = state;
+  const isRunning = status === 'running';
 
-  // --- Logic: Handle what happens when the timer hits 0 ---
-  const handleTimerEnd = useCallback(() => {
-    setIsRunning(false);
-    onTimerComplete(); // Play the sound!
+  // Latest values mirrored into refs so the clock effect can read them without
+  // re-subscribing on every tick.
+  const secondsLeftRef = useRef(secondsLeft);
+  secondsLeftRef.current = secondsLeft;
+  const onCompleteRef = useRef(onTimerComplete);
+  onCompleteRef.current = onTimerComplete;
 
-    if (actualMode === "work") {
-      setSessionCount(prev => {
-        const newCount = prev + 1;
-        // Decision: Long break or Short break?
-        if (newCount % 4 === 0) {
-          setActualMode("longBreak");
-          setActualTime(timerSettings.longBreak);
-        } else {
-          setActualMode("shortBreak");
-          setActualTime(timerSettings.shortBreak);
-        }
-        return newCount;
-      });
-    } else {
-      // Break is over, back to work
-      setActualMode("work");
-      setActualTime(timerSettings.work);
-    }
-  }, [actualMode, timerSettings, onTimerComplete]);
+  // Wall-clock deadline used for delta-time counting, so the countdown stays
+  // accurate even if interval callbacks are delayed or throttled.
+  const deadlineRef = useRef<number | null>(null);
 
-  // --- Logic: The Ticking Clock (Delta Method) ---
+  // --- The ticking clock (delta method) ---
+  // Keyed only on `status`: starting/pausing (re)creates the clock, while the
+  // per-second `secondsLeft` updates flow back in via TICK without resetting it.
   useEffect(() => {
-    let interval: ReturnType<typeof setInterval> | undefined;
-
-    if (isRunning) {
-      // 1. Set the target time if not set
-      timerEndTime.current ??= Date.now() + actualTime * 1000;
-
-      interval = setInterval(() => {
-        const now = Date.now();
-        // 2. Calculate remaining time
-        const secondsLeft = Math.ceil((timerEndTime.current! - now) / 1000);
-
-        if (secondsLeft <= 0) {
-          setActualTime(0);
-          handleTimerEnd();
-          timerEndTime.current = null; // Reset for next cycle
-        } else {
-          setActualTime(secondsLeft);
-        }
-      }, 100);
-    } else {
-      timerEndTime.current = null;
+    if (status !== 'running') {
+      deadlineRef.current = null; // the single place the anchor is cleared
+      return;
     }
 
-    return () => clearInterval(interval);
-  }, [isRunning, actualTime, handleTimerEnd]);
+    deadlineRef.current ??= Date.now() + secondsLeftRef.current * 1000;
 
-  // --- Public Actions ---
+    const intervalId = setInterval(() => {
+      const secondsRemaining = Math.ceil(
+        (deadlineRef.current! - Date.now()) / 1000,
+      );
 
-  const toggleTimer = () => {
-    setIsRunning(!isRunning);
-  };
+      if (secondsRemaining > 0) {
+        // Just advance the countdown — no phase decisions happen here.
+        dispatch({ type: 'TICK', secondsLeft: secondsRemaining });
+        return;
+      }
 
-  const resetTimer = () => {
-    setIsRunning(false);
-    setActualTime(timerSettings[actualMode]);
-    setSessionCount(0);
-    timerEndTime.current = null;
-  };
+      // Boundary reached: stop the clock first so COMPLETE can only fire once,
+      // then let the machine pick the next phase and run the completion effect.
+      clearInterval(intervalId);
+      deadlineRef.current = null;
+      dispatch({ type: 'COMPLETE' });
+      onCompleteRef.current();
+    }, 100);
 
-  const changeMode = (newMode: Mode) => {
-    setActualMode(newMode);
-    setActualTime(timerSettings[newMode]);
-    setIsRunning(false);
-    timerEndTime.current = null;
-  };
+    return () => clearInterval(intervalId);
+  }, [status]);
 
-  const updateTimeFromSettings = (newSettings: TimerSettings) => {
-     // If stopped, immediately update the display to match the new setting
-     if (!isRunning) {
-        setActualTime(newSettings[actualMode]);
-     }
-  };
+  // --- Public actions: each maps to exactly one explicit transition ---
+
+  const toggleTimer = useCallback(() => {
+    dispatch({ type: 'TOGGLE' });
+  }, []);
+
+  const resetTimer = useCallback(() => {
+    dispatch({ type: 'RESET' });
+  }, []);
+
+  const changeMode = useCallback((newMode: Mode) => {
+    dispatch({ type: 'CHANGE_MODE', mode: newMode });
+  }, []);
+
+  const updateTimeFromSettings = useCallback((newSettings: TimerSettings) => {
+    dispatch({ type: 'SYNC_SETTINGS', settings: newSettings });
+  }, []);
 
   return {
-    actualTime,
+    actualTime: secondsLeft,
     isRunning,
-    actualMode,
+    actualMode: mode,
     sessionCount,
     toggleTimer,
     resetTimer,
     changeMode,
-    updateTimeFromSettings
+    updateTimeFromSettings,
   };
 };
