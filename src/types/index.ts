@@ -20,6 +20,10 @@ export interface ModeSelectorProps {
   handleModeChange: (mode: Mode) => void;
 }
 
+export interface SessionCounterProps {
+  sessionCount: number;
+}
+
 export interface TimerProps {
   actualTime: number;
   isRunning: boolean;

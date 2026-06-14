@@ -69,6 +69,20 @@ export const usePomodoro = (
     return () => clearInterval(interval);
   }, [isRunning, actualTime, handleTimerEnd]);
 
+  // --- Logic: React to settings changes ---
+  // When new settings are saved, reflect the new duration on the display, but
+  // only while paused so we never clobber a live countdown. The ref guard makes
+  // this fire on settings changes only (not on every pause/mode toggle).
+  const prevSettingsRef = useRef(timerSettings);
+  useEffect(() => {
+    if (prevSettingsRef.current === timerSettings) return;
+    prevSettingsRef.current = timerSettings;
+
+    if (!isRunning) {
+      setActualTime(timerSettings[actualMode]);
+    }
+  }, [timerSettings, isRunning, actualMode]);
+
   // --- Public Actions ---
 
   const toggleTimer = () => {
@@ -89,13 +103,6 @@ export const usePomodoro = (
     timerEndTime.current = null;
   };
 
-  const updateTimeFromSettings = (newSettings: TimerSettings) => {
-     // If stopped, immediately update the display to match the new setting
-     if (!isRunning) {
-        setActualTime(newSettings[actualMode]);
-     }
-  };
-
   return {
     actualTime,
     isRunning,
@@ -104,6 +111,5 @@ export const usePomodoro = (
     toggleTimer,
     resetTimer,
     changeMode,
-    updateTimeFromSettings
   };
 };

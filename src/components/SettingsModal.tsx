@@ -1,20 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { type SettingsModalProps, type TimerSettings } from '../types';
+import { secondsToMinutes } from '../utils/timeHelpers';
 
 const SettingsModal: React.FC<SettingsModalProps> = ({ show, onClose, onSave, currentSettings }) => {
-  const [formData, setFormData] = useState<TimerSettings>({
-    work: currentSettings.work / 60,
-    shortBreak: currentSettings.shortBreak / 60,
-    longBreak: currentSettings.longBreak / 60
-  });
+  const [formData, setFormData] = useState<TimerSettings>(() => secondsToMinutes(currentSettings));
 
   useEffect(() => {
     if (show) {
-      setFormData({
-        work: currentSettings.work / 60,
-        shortBreak: currentSettings.shortBreak / 60,
-        longBreak: currentSettings.longBreak / 60
-      });
+      setFormData(secondsToMinutes(currentSettings));
     }
   }, [show, currentSettings]);
 
@@ -28,7 +21,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ show, onClose, onSave, cu
 
   const handleBlur = (e: React.FocusEvent<HTMLInputElement>) => {
     const { name, value} = e.target;
-    let numValue = Number(value);
+    const numValue = Number(value);
 
     if (numValue < 1){
       setFormData((prev) => ({
