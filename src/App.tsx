@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import './App.css';
-import { formatTime } from './utils/timeHelpers';
 import { type TimerSettings } from './types';
+import { APP_NAME, DEFAULT_SETTINGS } from './constants';
 
 // Components
 import Timer from './components/Timer';
@@ -12,32 +12,30 @@ import Feedback from './components/Feedback';
 // Hooks
 import { useAudio } from './hooks/useAudio';
 import { usePomodoro } from './hooks/usePomodoro';
-
-const DEFAULT_SETTINGS = {
-  work: 25 * 60,
-  shortBreak: 5 * 60,
-  longBreak: 15 * 60
-};
+import { useDocumentTitle } from './hooks/useDocumentTitle';
 
 function App() {
   // 1. Setup Audio
   const { audioRef, alertSound, playAlert, primeAudio } = useAudio();
 
-  // 2. Setup Settings State
+  // 2. Setup Settings State (stored in seconds)
   const [timerSettings, setTimerSettings] = useState<TimerSettings>(DEFAULT_SETTINGS);
-  const [showSettings, setShowSettings] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
   // 3. Setup Pomodoro Logic (Injecting settings and the sound player)
   const {
-    actualTime,
+    timeLeft,
     isRunning,
-    actualMode,
+    mode,
     sessionCount,
     toggleTimer,
     resetTimer,
     changeMode,
     updateTimeFromSettings
   } = usePomodoro(timerSettings, playAlert);
+
+  // 4. Keep the browser tab title in sync
+  useDocumentTitle(timeLeft, mode, isRunning);
 
   // --- Handlers ---
 
@@ -46,38 +44,24 @@ function App() {
     toggleTimer();
   };
 
-  const handleSaveSettings = (newSettingsInMinutes: TimerSettings) => {
-    const newSettingsInSeconds = {
-      work: newSettingsInMinutes.work * 60,
-      shortBreak: newSettingsInMinutes.shortBreak * 60,
-      longBreak: newSettingsInMinutes.longBreak * 60,
-    };
-    setTimerSettings(newSettingsInSeconds);
-    updateTimeFromSettings(newSettingsInSeconds);
-    setShowSettings(false);
+  const handleSaveSettings = (newSettings: TimerSettings) => {
+    // SettingsModal already hands back seconds, so we just store and apply.
+    setTimerSettings(newSettings);
+    updateTimeFromSettings(newSettings);
+    setIsSettingsOpen(false);
   };
-
-  // Browser Tab Title Effect
-  useEffect(() => {
-    const timeString = formatTime(actualTime);
-    const modeLabels = { work: "Work", shortBreak: "Short Break", longBreak: "Long Break" };
-    
-    document.title = isRunning 
-      ? `${timeString} - ${modeLabels[actualMode]}` 
-      : "MelloFocus";
-  }, [actualTime, actualMode, isRunning]);
 
   // --- Render ---
 
   return (
     <div className="page-layout">
-      
+
       <header className="page-header">
         <div className="header-content">
-          <h2>MelloFocus</h2>
-          <button 
-             className="settings-button" 
-             onClick={() => setShowSettings(true)}
+          <h2>{APP_NAME}</h2>
+          <button
+             className="settings-button"
+             onClick={() => setIsSettingsOpen(true)}
           >
             ⚙️ Settings
           </button>
@@ -85,30 +69,30 @@ function App() {
       </header>
 
       <main className="page-content">
-        <div className={`pomodoro-container ${actualMode}`}>
+        <div className={`pomodoro-container ${mode}`}>
           <p style={{ textAlign: 'center', color: 'var(--color-text-tertiary)' }}>
             Session: {sessionCount} / 4
           </p>
-          
-          <ModeSelector 
-            actualMode={actualMode} 
-            handleModeChange={changeMode} 
+
+          <ModeSelector
+            mode={mode}
+            onModeChange={changeMode}
           />
-          
+
           <Timer
-            actualTime={actualTime}
+            timeLeft={timeLeft}
             isRunning={isRunning}
-            handleStartStop={handleStartStop}
-            handleReset={resetTimer}
+            onStartStop={handleStartStop}
+            onReset={resetTimer}
           />
         </div>
       </main>
 
-      <SettingsModal 
-        show={showSettings} 
-        onClose={() => setShowSettings(false)}
+      <SettingsModal
+        isOpen={isSettingsOpen}
+        onClose={() => setIsSettingsOpen(false)}
         onSave={handleSaveSettings}
-        currentSettings={timerSettings}
+        settings={timerSettings}
       />
 
       <footer className="page-footer">

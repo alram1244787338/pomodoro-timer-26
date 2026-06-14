@@ -4,20 +4,20 @@ import { formatTime } from '../utils/timeHelpers';
 
 import styles from './Timer.module.css';
 
-const Timer: React.FC<TimerProps> = ({ actualTime, isRunning, handleStartStop, handleReset }) => (
+const Timer: React.FC<TimerProps> = ({ timeLeft, isRunning, onStartStop, onReset }) => (
   <div>
     <div className={styles.timer}>
-      {formatTime(actualTime)}
+      {formatTime(timeLeft)}
     </div>
     <div className={styles.actionButtons}>
       <button
         className="action-button start-button"
-        onClick={handleStartStop}>
+        onClick={onStartStop}>
         {isRunning ? "Pause" : "Start"}
       </button>
       <button
         className="action-button reset-button"
-        onClick={handleReset}>
+        onClick={onReset}>
         Reset
       </button>
     </div>

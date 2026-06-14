@@ -5,14 +5,14 @@ import { type Mode, type TimerSettings } from '../types';
  * Manages the Pomodoro logic (Work -> Break cycles) and time tracking.
  */
 export const usePomodoro = (
-  timerSettings: TimerSettings, 
+  timerSettings: TimerSettings,
   onTimerComplete: () => void // Callback to run when timer ends (e.g. play sound)
 ) => {
-  const [actualTime, setActualTime] = useState(timerSettings.work);
+  const [timeLeft, setTimeLeft] = useState(timerSettings.work);
   const [isRunning, setIsRunning] = useState(false);
-  const [actualMode, setActualMode] = useState<Mode>("work");
+  const [mode, setMode] = useState<Mode>("work");
   const [sessionCount, setSessionCount] = useState(0);
-  
+
   // The invisible anchor for Delta Time calculation
   const timerEndTime = useRef<number | null>(null);
 
@@ -21,25 +21,25 @@ export const usePomodoro = (
     setIsRunning(false);
     onTimerComplete(); // Play the sound!
 
-    if (actualMode === "work") {
+    if (mode === "work") {
       setSessionCount(prev => {
         const newCount = prev + 1;
         // Decision: Long break or Short break?
         if (newCount % 4 === 0) {
-          setActualMode("longBreak");
-          setActualTime(timerSettings.longBreak);
+          setMode("longBreak");
+          setTimeLeft(timerSettings.longBreak);
         } else {
-          setActualMode("shortBreak");
-          setActualTime(timerSettings.shortBreak);
+          setMode("shortBreak");
+          setTimeLeft(timerSettings.shortBreak);
         }
         return newCount;
       });
     } else {
       // Break is over, back to work
-      setActualMode("work");
-      setActualTime(timerSettings.work);
+      setMode("work");
+      setTimeLeft(timerSettings.work);
     }
-  }, [actualMode, timerSettings, onTimerComplete]);
+  }, [mode, timerSettings, onTimerComplete]);
 
   // --- Logic: The Ticking Clock (Delta Method) ---
   useEffect(() => {
@@ -47,7 +47,7 @@ export const usePomodoro = (
 
     if (isRunning) {
       // 1. Set the target time if not set
-      timerEndTime.current ??= Date.now() + actualTime * 1000;
+      timerEndTime.current ??= Date.now() + timeLeft * 1000;
 
       interval = setInterval(() => {
         const now = Date.now();
@@ -55,11 +55,11 @@ export const usePomodoro = (
         const secondsLeft = Math.ceil((timerEndTime.current! - now) / 1000);
 
         if (secondsLeft <= 0) {
-          setActualTime(0);
+          setTimeLeft(0);
           handleTimerEnd();
           timerEndTime.current = null; // Reset for next cycle
         } else {
-          setActualTime(secondsLeft);
+          setTimeLeft(secondsLeft);
         }
       }, 100);
     } else {
@@ -67,7 +67,7 @@ export const usePomodoro = (
     }
 
     return () => clearInterval(interval);
-  }, [isRunning, actualTime, handleTimerEnd]);
+  }, [isRunning, timeLeft, handleTimerEnd]);
 
   // --- Public Actions ---
 
@@ -77,14 +77,14 @@ export const usePomodoro = (
 
   const resetTimer = () => {
     setIsRunning(false);
-    setActualTime(timerSettings[actualMode]);
+    setTimeLeft(timerSettings[mode]);
     setSessionCount(0);
     timerEndTime.current = null;
   };
 
   const changeMode = (newMode: Mode) => {
-    setActualMode(newMode);
-    setActualTime(timerSettings[newMode]);
+    setMode(newMode);
+    setTimeLeft(timerSettings[newMode]);
     setIsRunning(false);
     timerEndTime.current = null;
   };
@@ -92,14 +92,14 @@ export const usePomodoro = (
   const updateTimeFromSettings = (newSettings: TimerSettings) => {
      // If stopped, immediately update the display to match the new setting
      if (!isRunning) {
-        setActualTime(newSettings[actualMode]);
+        setTimeLeft(newSettings[mode]);
      }
   };
 
   return {
-    actualTime,
+    timeLeft,
     isRunning,
-    actualMode,
+    mode,
     sessionCount,
     toggleTimer,
     resetTimer,

@@ -9,22 +9,22 @@ export interface TimerSettings {
 }
 
 export interface SettingsModalProps {
-  show: boolean;
+  isOpen: boolean;
   onClose: () => void;
   onSave: (settings: TimerSettings) => void;
-  currentSettings: TimerSettings;
+  settings: TimerSettings;
 }
 
 export interface ModeSelectorProps {
-  actualMode: Mode;
-  handleModeChange: (mode: Mode) => void;
+  mode: Mode;
+  onModeChange: (mode: Mode) => void;
 }
 
 export interface TimerProps {
-  actualTime: number;
+  timeLeft: number;
   isRunning: boolean;
-  handleStartStop: () => void;
-  handleReset: () => void;
+  onStartStop: () => void;
+  onReset: () => void;
 }
 
 export interface FeedbackFormElements extends HTMLFormControlsCollection {

@@ -1,24 +1,21 @@
 import React from 'react';
-import { type ModeSelectorProps } from '../types';
+import { type ModeSelectorProps, type Mode } from '../types';
+import { MODE_LABELS } from '../constants';
 import styles from './ModeSelector.module.css';
 
-const ModeSelector: React.FC<ModeSelectorProps> = ({ actualMode, handleModeChange }) => (
+const MODES = Object.keys(MODE_LABELS) as Mode[];
+
+const ModeSelector: React.FC<ModeSelectorProps> = ({ mode, onModeChange }) => (
   <div className={styles.modeTabs}>
-    <button
-      className={`${styles.modeButton} ${actualMode === 'work' ? styles.active : ''}`}
-      onClick={() => handleModeChange("work")}>
-      Work
-    </button>
-    <button
-      className={`${styles.modeButton} ${actualMode === 'shortBreak' ? styles.active : ''}`}
-      onClick={() => handleModeChange("shortBreak")}>
-      Short Break
-    </button>
-    <button
-      className={`${styles.modeButton} ${actualMode === 'longBreak' ? styles.active : ''}`}
-      onClick={() => handleModeChange("longBreak")}>
-      Long Break
-    </button>
+    {MODES.map((m) => (
+      <button
+        key={m}
+        className={`${styles.modeButton} ${mode === m ? styles.active : ''}`}
+        onClick={() => onModeChange(m)}
+      >
+        {MODE_LABELS[m]}
+      </button>
+    ))}
   </div>
 );
 
