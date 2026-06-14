@@ -69,6 +69,14 @@ export const usePomodoro = (
     return () => clearInterval(interval);
   }, [isRunning, actualTime, handleTimerEnd]);
 
+  // --- Sync display time when settings change (only while paused) ---
+  const currentModeDuration = timerSettings[actualMode];
+  useEffect(() => {
+    if (!isRunning) {
+      setActualTime(currentModeDuration);
+    }
+  }, [currentModeDuration, isRunning]);
+
   // --- Public Actions ---
 
   const toggleTimer = () => {
@@ -89,13 +97,6 @@ export const usePomodoro = (
     timerEndTime.current = null;
   };
 
-  const updateTimeFromSettings = (newSettings: TimerSettings) => {
-     // If stopped, immediately update the display to match the new setting
-     if (!isRunning) {
-        setActualTime(newSettings[actualMode]);
-     }
-  };
-
   return {
     actualTime,
     isRunning,
@@ -104,6 +105,5 @@ export const usePomodoro = (
     toggleTimer,
     resetTimer,
     changeMode,
-    updateTimeFromSettings
   };
 };

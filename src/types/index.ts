@@ -8,13 +8,6 @@ export interface TimerSettings {
   longBreak: number;
 }
 
-export interface SettingsModalProps {
-  show: boolean;
-  onClose: () => void;
-  onSave: (settings: TimerSettings) => void;
-  currentSettings: TimerSettings;
-}
-
 export interface ModeSelectorProps {
   actualMode: Mode;
   handleModeChange: (mode: Mode) => void;

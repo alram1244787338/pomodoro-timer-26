@@ -1,7 +1,4 @@
-import { useState, useEffect } from 'react';
 import './App.css';
-import { formatTime } from './utils/timeHelpers';
-import { type TimerSettings } from './types';
 
 // Components
 import Timer from './components/Timer';
@@ -10,74 +7,35 @@ import SettingsModal from './components/SettingsModal';
 import Feedback from './components/Feedback';
 
 // Hooks
-import { useAudio } from './hooks/useAudio';
-import { usePomodoro } from './hooks/usePomodoro';
-
-const DEFAULT_SETTINGS = {
-  work: 25 * 60,
-  shortBreak: 5 * 60,
-  longBreak: 15 * 60
-};
+import { usePomodoroApp } from './hooks/usePomodoroApp';
 
 function App() {
-  // 1. Setup Audio
-  const { audioRef, alertSound, playAlert, primeAudio } = useAudio();
-
-  // 2. Setup Settings State
-  const [timerSettings, setTimerSettings] = useState<TimerSettings>(DEFAULT_SETTINGS);
-  const [showSettings, setShowSettings] = useState(false);
-
-  // 3. Setup Pomodoro Logic (Injecting settings and the sound player)
   const {
     actualTime,
     isRunning,
     actualMode,
     sessionCount,
-    toggleTimer,
+    handleStartStop,
     resetTimer,
     changeMode,
-    updateTimeFromSettings
-  } = usePomodoro(timerSettings, playAlert);
-
-  // --- Handlers ---
-
-  const handleStartStop = () => {
-    primeAudio();
-    toggleTimer();
-  };
-
-  const handleSaveSettings = (newSettingsInMinutes: TimerSettings) => {
-    const newSettingsInSeconds = {
-      work: newSettingsInMinutes.work * 60,
-      shortBreak: newSettingsInMinutes.shortBreak * 60,
-      longBreak: newSettingsInMinutes.longBreak * 60,
-    };
-    setTimerSettings(newSettingsInSeconds);
-    updateTimeFromSettings(newSettingsInSeconds);
-    setShowSettings(false);
-  };
-
-  // Browser Tab Title Effect
-  useEffect(() => {
-    const timeString = formatTime(actualTime);
-    const modeLabels = { work: "Work", shortBreak: "Short Break", longBreak: "Long Break" };
-    
-    document.title = isRunning 
-      ? `${timeString} - ${modeLabels[actualMode]}` 
-      : "MelloFocus";
-  }, [actualTime, actualMode, isRunning]);
-
-  // --- Render ---
+    settingsInMinutes,
+    showSettings,
+    openSettings,
+    handleSaveSettings,
+    closeSettings,
+    audioRef,
+    alertSound,
+  } = usePomodoroApp();
 
   return (
     <div className="page-layout">
-      
+
       <header className="page-header">
         <div className="header-content">
           <h2>MelloFocus</h2>
-          <button 
-             className="settings-button" 
-             onClick={() => setShowSettings(true)}
+          <button
+             className="settings-button"
+             onClick={openSettings}
           >
             ⚙️ Settings
           </button>
@@ -89,12 +47,12 @@ function App() {
           <p style={{ textAlign: 'center', color: 'var(--color-text-tertiary)' }}>
             Session: {sessionCount} / 4
           </p>
-          
-          <ModeSelector 
-            actualMode={actualMode} 
-            handleModeChange={changeMode} 
+
+          <ModeSelector
+            actualMode={actualMode}
+            handleModeChange={changeMode}
           />
-          
+
           <Timer
             actualTime={actualTime}
             isRunning={isRunning}
@@ -104,11 +62,11 @@ function App() {
         </div>
       </main>
 
-      <SettingsModal 
-        show={showSettings} 
-        onClose={() => setShowSettings(false)}
+      <SettingsModal
+        show={showSettings}
+        onClose={closeSettings}
         onSave={handleSaveSettings}
-        currentSettings={timerSettings}
+        currentSettings={settingsInMinutes}
       />
 
       <footer className="page-footer">
@@ -118,7 +76,7 @@ function App() {
         <Feedback />
       </footer>
 
-      {/* The Audio Element is managed by hook*/}
+      {/* The Audio Element is managed by the useAudio hook */}
       <audio ref={audioRef} src={alertSound} preload='auto'>
         <track kind="captions" srcLang="en" src=""/>
       </audio>
