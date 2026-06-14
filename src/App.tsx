@@ -1,37 +1,33 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import './App.css';
-import { formatTime } from './utils/timeHelpers';
 import { type TimerSettings } from './types';
+import { DEFAULT_SETTINGS_SECONDS, SESSIONS_BEFORE_LONG_BREAK, APP_NAME } from './constants';
 
 // Components
 import Timer from './components/Timer';
 import ModeSelector from './components/ModeSelector';
 import SettingsModal from './components/SettingsModal';
 import Feedback from './components/Feedback';
+import AudioPlayer from './components/AudioPlayer';
 
 // Hooks
 import { useAudio } from './hooks/useAudio';
 import { usePomodoro } from './hooks/usePomodoro';
-
-const DEFAULT_SETTINGS = {
-  work: 25 * 60,
-  shortBreak: 5 * 60,
-  longBreak: 15 * 60
-};
+import { useDocumentTitle } from './hooks/useDocumentTitle';
 
 function App() {
   // 1. Setup Audio
-  const { audioRef, alertSound, playAlert, primeAudio } = useAudio();
+  const { playerRef, playAlert, primeAudio } = useAudio();
 
   // 2. Setup Settings State
-  const [timerSettings, setTimerSettings] = useState<TimerSettings>(DEFAULT_SETTINGS);
+  const [timerSettings, setTimerSettings] = useState<TimerSettings>(DEFAULT_SETTINGS_SECONDS);
   const [showSettings, setShowSettings] = useState(false);
 
   // 3. Setup Pomodoro Logic (Injecting settings and the sound player)
   const {
-    actualTime,
+    time,
     isRunning,
-    actualMode,
+    mode,
     sessionCount,
     toggleTimer,
     resetTimer,
@@ -46,26 +42,13 @@ function App() {
     toggleTimer();
   };
 
-  const handleSaveSettings = (newSettingsInMinutes: TimerSettings) => {
-    const newSettingsInSeconds = {
-      work: newSettingsInMinutes.work * 60,
-      shortBreak: newSettingsInMinutes.shortBreak * 60,
-      longBreak: newSettingsInMinutes.longBreak * 60,
-    };
-    setTimerSettings(newSettingsInSeconds);
-    updateTimeFromSettings(newSettingsInSeconds);
+  const handleSaveSettings = (newSettings: TimerSettings) => {
+    setTimerSettings(newSettings);
+    updateTimeFromSettings(newSettings);
     setShowSettings(false);
   };
 
-  // Browser Tab Title Effect
-  useEffect(() => {
-    const timeString = formatTime(actualTime);
-    const modeLabels = { work: "Work", shortBreak: "Short Break", longBreak: "Long Break" };
-    
-    document.title = isRunning 
-      ? `${timeString} - ${modeLabels[actualMode]}` 
-      : "MelloFocus";
-  }, [actualTime, actualMode, isRunning]);
+  useDocumentTitle(time, mode, isRunning);
 
   // --- Render ---
 
@@ -74,7 +57,7 @@ function App() {
       
       <header className="page-header">
         <div className="header-content">
-          <h2>MelloFocus</h2>
+          <h2>{APP_NAME}</h2>
           <button 
              className="settings-button" 
              onClick={() => setShowSettings(true)}
@@ -85,21 +68,21 @@ function App() {
       </header>
 
       <main className="page-content">
-        <div className={`pomodoro-container ${actualMode}`}>
+        <div className={`pomodoro-container ${mode}`}>
           <p style={{ textAlign: 'center', color: 'var(--color-text-tertiary)' }}>
-            Session: {sessionCount} / 4
+            Session: {sessionCount} / {SESSIONS_BEFORE_LONG_BREAK}
           </p>
-          
-          <ModeSelector 
-            actualMode={actualMode} 
-            handleModeChange={changeMode} 
+
+          <ModeSelector
+            mode={mode}
+            onModeChange={changeMode}
           />
-          
+
           <Timer
-            actualTime={actualTime}
+            time={time}
             isRunning={isRunning}
-            handleStartStop={handleStartStop}
-            handleReset={resetTimer}
+            onStartStop={handleStartStop}
+            onReset={resetTimer}
           />
         </div>
       </main>
@@ -118,10 +101,7 @@ function App() {
         <Feedback />
       </footer>
 
-      {/* The Audio Element is managed by hook*/}
-      <audio ref={audioRef} src={alertSound} preload='auto'>
-        <track kind="captions" srcLang="en" src=""/>
-      </audio>
+      <AudioPlayer ref={playerRef} />
 
     </div>
   );

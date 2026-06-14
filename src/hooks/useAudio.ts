@@ -1,37 +1,16 @@
-import { useRef } from 'react';
-import alertSound from '../assets/alert.mp3';
+import { useRef, useCallback } from 'react';
+import type { AudioPlayerHandle } from '../components/AudioPlayer';
 
 export const useAudio = () => {
-  const audioRef = useRef<HTMLAudioElement>(null);
+  const playerRef = useRef<AudioPlayerHandle>(null);
 
-  /**
-   * Plays the alert sound from the start
-   */
-  const playAlert = () => {
-    if (audioRef.current) {
-      audioRef.current.currentTime = 0;
-      audioRef.current.play().catch(e => console.error("Audio play failed:", e));
-    }
-  };
+  const playAlert = useCallback(() => {
+    playerRef.current?.play();
+  }, []);
 
-  /**
-   * "Primes" the audio (play/pause instantly) to unlock browser autoplay restrictions.
-   * Call this on a user click event (like Start).
-   */
-  const primeAudio = () => {
-    if (audioRef.current) {
-      audioRef.current.play().catch(() => {
-        // Expected error if file not loaded, we just need the user gesture
-      });
-      audioRef.current.pause();
-      audioRef.current.currentTime = 0;
-    }
-  };
+  const primeAudio = useCallback(() => {
+    playerRef.current?.prime();
+  }, []);
 
-  return { 
-    audioRef, 
-    alertSound, 
-    playAlert, 
-    primeAudio 
-  };
+  return { playerRef, playAlert, primeAudio };
 };

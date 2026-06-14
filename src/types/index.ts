@@ -16,15 +16,15 @@ export interface SettingsModalProps {
 }
 
 export interface ModeSelectorProps {
-  actualMode: Mode;
-  handleModeChange: (mode: Mode) => void;
+  mode: Mode;
+  onModeChange: (mode: Mode) => void;
 }
 
 export interface TimerProps {
-  actualTime: number;
+  time: number;
   isRunning: boolean;
-  handleStartStop: () => void;
-  handleReset: () => void;
+  onStartStop: () => void;
+  onReset: () => void;
 }
 
 export interface FeedbackFormElements extends HTMLFormControlsCollection {

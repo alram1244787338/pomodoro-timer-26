@@ -1,19 +1,20 @@
 import React, { useState, useEffect } from 'react';
-import { type SettingsModalProps, type TimerSettings } from '../types';
+import { type SettingsModalProps, type TimerSettings, type Mode } from '../types';
+import { MODE_LABELS, SETTINGS_FIELD_LABELS, SETTINGS_CONSTRAINTS } from '../constants';
+
+const { min: MIN, max: MAX } = SETTINGS_CONSTRAINTS;
+const clamp = (v: number) => Math.min(MAX, Math.max(MIN, Math.round(v)));
 
 const SettingsModal: React.FC<SettingsModalProps> = ({ show, onClose, onSave, currentSettings }) => {
-  const [formData, setFormData] = useState<TimerSettings>({
-    work: currentSettings.work / 60,
-    shortBreak: currentSettings.shortBreak / 60,
-    longBreak: currentSettings.longBreak / 60
-  });
+  const [formData, setFormData] = useState({ work: 0, shortBreak: 0, longBreak: 0 });
 
+  // Reset form to minutes when modal opens or settings change
   useEffect(() => {
     if (show) {
       setFormData({
         work: currentSettings.work / 60,
         shortBreak: currentSettings.shortBreak / 60,
-        longBreak: currentSettings.longBreak / 60
+        longBreak: currentSettings.longBreak / 60,
       });
     }
   }, [show, currentSettings]);
@@ -22,21 +23,26 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ show, onClose, onSave, cu
     const { name, value } = e.target;
     setFormData(prev => ({
       ...prev,
-      [name]: value === '' ? 0 : Number(value)
+      [name]: value === '' ? 0 : Math.round(Number(value)),
     }));
   };
 
   const handleBlur = (e: React.FocusEvent<HTMLInputElement>) => {
-    const { name, value} = e.target;
-    let numValue = Number(value);
+    const { name, value } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      [name]: clamp(Number(value)),
+    }));
+  };
 
-    if (numValue < 1){
-      setFormData((prev) => ({
-        ...prev,
-        [name]: 1
-      }));
-    }
-  }
+  const handleSave = () => {
+    const validated: TimerSettings = {
+      work: clamp(formData.work) * 60,
+      shortBreak: clamp(formData.shortBreak) * 60,
+      longBreak: clamp(formData.longBreak) * 60,
+    };
+    onSave(validated);
+  };
 
   if (!show) return null;
 
@@ -44,52 +50,28 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ show, onClose, onSave, cu
     <div className="feedback-modal">
       <div className="settings-content">
         <h3>Timer Settings</h3>
-        
-        <div className="settings-group">
-          <label htmlFor="work">Work (minutes)</label>
-          <input 
-            id="work"
-            type="number" 
-            name="work"
-            value={formData.work === 0 ? '' : formData.work}
-            onChange={handleChange}
-            onBlur={handleBlur}
-            min="1"
-          />
-        </div>
 
-        <div className="settings-group">
-          <label htmlFor="shortBreak">Short Break (minutes)</label>
-          <input 
-            id="shortBreak"
-            type="number" 
-            name="shortBreak"
-            value={formData.shortBreak}
-            onChange={handleChange}
-            min="1"
-          />
-        </div>
-
-        <div className="settings-group">
-          <label htmlFor="longBreak">Long Break (minutes)</label>
-          <input 
-            id="longBreak"
-            type="number" 
-            name="longBreak"
-            value={formData.longBreak}
-            onChange={handleChange}
-            min="1"
-          />
-        </div>
+        {(Object.keys(MODE_LABELS) as Mode[]).map(key => (
+          <div className="settings-group" key={key}>
+            <label htmlFor={key}>{SETTINGS_FIELD_LABELS[key]}</label>
+            <input
+              id={key}
+              type="number"
+              name={key}
+              value={formData[key] === 0 ? '' : formData[key]}
+              onChange={handleChange}
+              onBlur={handleBlur}
+              min={MIN}
+              max={MAX}
+            />
+          </div>
+        ))}
 
         <div className="action-buttons" style={{ marginTop: '1.5rem', justifyContent: 'flex-end' }}>
           <button className="action-button reset-button" onClick={onClose}>
             Cancel
           </button>
-          <button 
-            className="action-button start-button" 
-            onClick={() => onSave(formData)}
-          >
+          <button className="action-button start-button" onClick={handleSave}>
             Save
           </button>
         </div>
