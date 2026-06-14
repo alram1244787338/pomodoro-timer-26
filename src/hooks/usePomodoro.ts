@@ -1,109 +1,101 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
-import { type Mode, type TimerSettings } from '../types';
+// src/hooks/usePomodoro.ts
+import { useReducer, useCallback, useRef } from 'react';
+import type { Mode, TimerSettings } from '../types';
+import { pomodoroReducer } from './pomodoroReducer';
+import { useTimer } from './useTimer';
+
+const SESSIONS_BEFORE_LONG_BREAK = 4;
 
 /**
- * Manages the Pomodoro logic (Work -> Break cycles) and time tracking.
+ * Orchestrates the Pomodoro timer by composing:
+ *   - useTimer        (countdown engine — no domain knowledge)
+ *   - pomodoroReducer (state machine — no side effects)
+ *
+ * This hook is the only place that wires "time's up" to "switch mode",
+ * keeping the two concerns cleanly separated.
  */
 export const usePomodoro = (
-  timerSettings: TimerSettings, 
-  onTimerComplete: () => void // Callback to run when timer ends (e.g. play sound)
+  timerSettings: TimerSettings,
+  onTimerComplete: () => void
 ) => {
-  const [actualTime, setActualTime] = useState(timerSettings.work);
-  const [isRunning, setIsRunning] = useState(false);
-  const [actualMode, setActualMode] = useState<Mode>("work");
-  const [sessionCount, setSessionCount] = useState(0);
-  
-  // The invisible anchor for Delta Time calculation
-  const timerEndTime = useRef<number | null>(null);
+  const [pomodoroState, dispatch] = useReducer(pomodoroReducer, {
+    mode: "work" as Mode,
+    sessionCount: 0,
+  });
 
-  // --- Logic: Handle what happens when the timer hits 0 ---
-  const handleTimerEnd = useCallback(() => {
-    setIsRunning(false);
-    onTimerComplete(); // Play the sound!
+  const { mode, sessionCount } = pomodoroState;
 
-    if (actualMode === "work") {
-      setSessionCount(prev => {
-        const newCount = prev + 1;
-        // Decision: Long break or Short break?
-        if (newCount % 4 === 0) {
-          setActualMode("longBreak");
-          setActualTime(timerSettings.longBreak);
-        } else {
-          setActualMode("shortBreak");
-          setActualTime(timerSettings.shortBreak);
-        }
-        return newCount;
-      });
-    } else {
-      // Break is over, back to work
-      setActualMode("work");
-      setActualTime(timerSettings.work);
-    }
-  }, [actualMode, timerSettings, onTimerComplete]);
+  // Keep latest values in refs so the onComplete callback (which is
+  // captured once by useTimer's ref) can always read fresh state.
+  const modeRef = useRef(mode);
+  modeRef.current = mode;
+  const sessionCountRef = useRef(sessionCount);
+  sessionCountRef.current = sessionCount;
+  const timerSettingsRef = useRef(timerSettings);
+  timerSettingsRef.current = timerSettings;
+  const onTimerCompleteRef = useRef(onTimerComplete);
+  onTimerCompleteRef.current = onTimerComplete;
 
-  // --- Logic: The Ticking Clock (Delta Method) ---
-  useEffect(() => {
-    let interval: ReturnType<typeof setInterval> | undefined;
+  const { timeLeft, setTimeLeft, isRunning, start, pause, reset } =
+    useTimer(timerSettings.work, () => {
+      onTimerCompleteRef.current();
+      dispatch({ type: "TIMER_END" });
 
+      // Mirror the reducer's next-mode logic so we can set timeLeft
+      // synchronously (dispatch is async, so state.mode hasn't changed yet).
+      const currentMode = modeRef.current;
+      const currentCount = sessionCountRef.current;
+      const nextMode: Mode =
+        currentMode === "work"
+          ? (currentCount + 1) % SESSIONS_BEFORE_LONG_BREAK === 0
+            ? "longBreak"
+            : "shortBreak"
+          : "work";
+      setTimeLeft(timerSettingsRef.current[nextMode]);
+    });
+
+  // --- Public API ---
+
+  const toggleTimer = useCallback(() => {
     if (isRunning) {
-      // 1. Set the target time if not set
-      timerEndTime.current ??= Date.now() + actualTime * 1000;
-
-      interval = setInterval(() => {
-        const now = Date.now();
-        // 2. Calculate remaining time
-        const secondsLeft = Math.ceil((timerEndTime.current! - now) / 1000);
-
-        if (secondsLeft <= 0) {
-          setActualTime(0);
-          handleTimerEnd();
-          timerEndTime.current = null; // Reset for next cycle
-        } else {
-          setActualTime(secondsLeft);
-        }
-      }, 100);
+      pause();
     } else {
-      timerEndTime.current = null;
+      start();
     }
+  }, [isRunning, pause, start]);
 
-    return () => clearInterval(interval);
-  }, [isRunning, actualTime, handleTimerEnd]);
+  const resetTimer = useCallback(() => {
+    dispatch({ type: "RESET" });
+    reset(timerSettings[mode]);
+  }, [dispatch, mode, reset, timerSettings]);
 
-  // --- Public Actions ---
+  const changeMode = useCallback(
+    (newMode: Mode) => {
+      pause();
+      dispatch({ type: "CHANGE_MODE", mode: newMode });
+      setTimeLeft(timerSettings[newMode]);
+    },
+    [dispatch, pause, setTimeLeft, timerSettings]
+  );
 
-  const toggleTimer = () => {
-    setIsRunning(!isRunning);
-  };
-
-  const resetTimer = () => {
-    setIsRunning(false);
-    setActualTime(timerSettings[actualMode]);
-    setSessionCount(0);
-    timerEndTime.current = null;
-  };
-
-  const changeMode = (newMode: Mode) => {
-    setActualMode(newMode);
-    setActualTime(timerSettings[newMode]);
-    setIsRunning(false);
-    timerEndTime.current = null;
-  };
-
-  const updateTimeFromSettings = (newSettings: TimerSettings) => {
-     // If stopped, immediately update the display to match the new setting
-     if (!isRunning) {
-        setActualTime(newSettings[actualMode]);
-     }
-  };
+  const updateTimeFromSettings = useCallback(
+    (newSettings: TimerSettings) => {
+      // Only sync displayed time when the timer is stopped
+      if (!isRunning) {
+        setTimeLeft(newSettings[mode]);
+      }
+    },
+    [isRunning, mode, setTimeLeft]
+  );
 
   return {
-    actualTime,
+    actualTime: timeLeft,
     isRunning,
-    actualMode,
+    actualMode: mode,
     sessionCount,
     toggleTimer,
     resetTimer,
     changeMode,
-    updateTimeFromSettings
+    updateTimeFromSettings,
   };
 };

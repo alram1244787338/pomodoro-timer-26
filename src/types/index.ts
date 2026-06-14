@@ -8,6 +8,20 @@ export interface TimerSettings {
   longBreak: number;
 }
 
+// --- Pomodoro State Machine ---
+
+export interface PomodoroState {
+  mode: Mode;
+  sessionCount: number;
+}
+
+export type PomodoroAction =
+  | { type: "TIMER_END" }
+  | { type: "CHANGE_MODE"; mode: Mode }
+  | { type: "RESET" };
+
+// --- Component Props ---
+
 export interface SettingsModalProps {
   show: boolean;
   onClose: () => void;
